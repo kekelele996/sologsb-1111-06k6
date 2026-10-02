@@ -3,18 +3,20 @@ import type { DrillHole } from '../types/drill-hole';
 import type { DrillRun } from '../types/drill-run';
 import type { CoreBox } from '../types/core-box';
 import type { LithoLog } from '../types/litho-log';
+import type { ReconcileRecord } from '../types/reconcile';
 
 /** IndexedDB 库名（浏览器本地存储，无后端） */
 export const DB_NAME = 'gbdrillcore-db';
 
 /** 当前 schema 版本，与 db.version(n) 对应 */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 class DrillCoreDB extends Dexie {
   holes!: Table<DrillHole, string>;
   runs!: Table<DrillRun, string>;
   boxes!: Table<CoreBox, string>;
   lithos!: Table<LithoLog, string>;
+  reconciles!: Table<ReconcileRecord, string>;
   meta!: Table<{ key: string; value: string }, string>;
 
   constructor() {
@@ -49,6 +51,16 @@ class DrillCoreDB extends Dexie {
             }
           });
       });
+
+    // v3：新增对账表（回次与岩性区间比段结果持久化，重试时保留已比好的段）
+    this.version(3).stores({
+      holes: 'id, holeNo, rigNo, shift, startDate',
+      runs: 'id, runNo, holeId, fromDepth, toDepth, shift',
+      boxes: 'id, boxNo, holeId, shelfPos, boxedAt',
+      lithos: 'id, holeId, fromDepth, toDepth, [holeId+fromDepth], lithology',
+      reconciles: 'id, holeId, status, createdAt',
+      meta: 'key',
+    });
   }
 }
 
