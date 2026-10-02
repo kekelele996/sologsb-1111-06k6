@@ -8,6 +8,7 @@ import { useHoleFilter } from '../hooks/useHoleFilter';
 import { useHoleStore } from '../stores/holeStore';
 import { useRunStore } from '../stores/runStore';
 import { useBoxStore } from '../stores/boxStore';
+import { useReconStore } from '../stores/reconcileStore';
 import { RIG_NOS, SHIFTS, type DrillHole, type SurveyPoint } from '../types/drill-hole';
 import { mergeRanges } from '../utils/recovery';
 import { uid } from '../utils/id';
@@ -55,6 +56,7 @@ export default function HoleList() {
   const removeHole = useHoleStore((s) => s.removeHole);
   const runs = useRunStore((s) => s.runs);
   const removeRunsByHole = useRunStore((s) => s.removeByHole);
+  const removeReconByHole = useReconStore((s) => s.removeByHole);
   const boxes = useBoxStore((s) => s.boxes);
 
   const filter = useHoleFilter();
@@ -166,11 +168,12 @@ export default function HoleList() {
             编辑
           </Button>
           <Popconfirm
-            title={`确认删除 ${record.holeNo}？（同时清除其回次）`}
+            title={`确认删除 ${record.holeNo}？（同时清除其回次与对账记录）`}
             onConfirm={async () => {
               await removeRunsByHole(record.id);
+              await removeReconByHole(record.id);
               await removeHole(record.id);
-              message.success('已删除钻孔及其回次');
+              message.success('已删除钻孔及其回次、对账记录');
             }}
           >
             <Button size="small" type="link" danger>

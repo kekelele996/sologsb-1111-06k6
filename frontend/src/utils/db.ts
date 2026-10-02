@@ -3,18 +3,21 @@ import type { DrillHole } from '../types/drill-hole';
 import type { DrillRun } from '../types/drill-run';
 import type { CoreBox } from '../types/core-box';
 import type { LithoLog } from '../types/litho-log';
+import type { ReconSegment, ReconSession } from '../types/reconcile';
 
 /** IndexedDB 库名（浏览器本地存储，无后端） */
 export const DB_NAME = 'gbdrillcore-db';
 
 /** 当前 schema 版本，与 db.version(n) 对应 */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 class DrillCoreDB extends Dexie {
   holes!: Table<DrillHole, string>;
   runs!: Table<DrillRun, string>;
   boxes!: Table<CoreBox, string>;
   lithos!: Table<LithoLog, string>;
+  reconSegments!: Table<ReconSegment, string>;
+  reconSessions!: Table<ReconSession, string>;
   meta!: Table<{ key: string; value: string }, string>;
 
   constructor() {
@@ -49,6 +52,18 @@ class DrillCoreDB extends Dexie {
             }
           });
       });
+
+    // v3：对账台——对账段（垂深域比对结果，含挂起/裁定）与对账批次留痕。
+    // 只新增表，不改既有表结构，无需迁移数据。
+    this.version(3).stores({
+      holes: 'id, holeNo, rigNo, shift, startDate',
+      runs: 'id, runNo, holeId, fromDepth, toDepth, shift',
+      boxes: 'id, boxNo, holeId, shelfPos, boxedAt',
+      lithos: 'id, holeId, fromDepth, toDepth, [holeId+fromDepth], lithology',
+      reconSegments: 'id, holeId, status, [holeId+status]',
+      reconSessions: 'id, holeId, createdAt',
+      meta: 'key',
+    });
   }
 }
 

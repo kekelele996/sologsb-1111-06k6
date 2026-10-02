@@ -157,7 +157,7 @@ export const SEED_LITHOS: LithoLog[] = [
   { id: 'litho-008', holeId: 'hole-003', fromDepth: 12, toDepth: 74, lithology: '花岗闪长岩', color: '灰白色', alteration: '绿泥石化', mineralization: '无', rqd: 79, sampleNo: 'YP-2403-01', logger: '吴倩' },
   { id: 'litho-009', holeId: 'hole-003', fromDepth: 74, toDepth: 118, lithology: '断层角砾岩', color: '杂色', alteration: '碳酸盐化', mineralization: '无', rqd: 32, sampleNo: 'YP-2403-02', logger: '吴倩', remark: '破碎带，岩芯采取率低' },
   { id: 'litho-010', holeId: 'hole-003', fromDepth: 118, toDepth: 205, lithology: '矽卡岩', color: '暗绿色', alteration: '矽卡岩化', mineralization: '磁铁矿', rqd: 66, sampleNo: 'YP-2403-03', logger: '吴倩' },
-  { id: 'litho-011', holeId: 'hole-003', fromDepth: 205, toDepth: 320, lithology: '大理岩', color: '灰白色', alteration: '硅化', mineralization: '黄铁矿', rqd: 71, sampleNo: 'YP-2403-04', logger: '吴倩' },
+  { id: 'litho-011', holeId: 'hole-003', fromDepth: 205, toDepth: 300, lithology: '大理岩', color: '灰白色', alteration: '硅化', mineralization: '黄铁矿', rqd: 71, sampleNo: 'YP-2403-04', logger: '吴倩', remark: '300m 以下孔内坍塌，岩芯未编录' },
   { id: 'litho-012', holeId: 'hole-004', fromDepth: 0, toDepth: 10, lithology: '第四系覆盖层', color: '黄褐色', alteration: '无', mineralization: '无', rqd: 0, sampleNo: '', logger: '赵晓峰' },
   { id: 'litho-013', holeId: 'hole-004', fromDepth: 10, toDepth: 180, lithology: '花岗闪长岩', color: '浅灰白色', alteration: '硅化', mineralization: '磁铁矿', rqd: 86, sampleNo: 'YP-2404-01', logger: '赵晓峰' },
   { id: 'litho-014', holeId: 'hole-001', fromDepth: 0, toDepth: 9, lithology: '第四系覆盖层', color: '黄褐色', alteration: '无', mineralization: '无', rqd: 0, sampleNo: '', logger: '陈立' },

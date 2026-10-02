@@ -34,7 +34,7 @@ interface LithoFormValues {
   remark?: string;
 }
 
-/** 岩性描述编录：按深度区间校重叠 + SVG 柱状图 */
+/** 岩性描述编录：编录员按垂深记区间，校重叠 + SVG 柱状图 */
 export default function LithoEditor() {
   const { message } = AntApp.useApp();
   const holes = useHoleStore((s) => s.holes);
@@ -159,7 +159,7 @@ export default function LithoEditor() {
   };
 
   const columns: TableColumnsType<LithoLog> = [
-    { title: '深度区间(m)', width: 130, render: (_, row) => <Text strong>{`${row.fromDepth}~${row.toDepth}`}</Text> },
+    { title: '深度区间(m·垂深)', width: 130, render: (_, row) => <Text strong>{`${row.fromDepth}~${row.toDepth}`}</Text> },
     { title: '厚度(m)', width: 90, align: 'right', render: (_, row) => Number((row.toDepth - row.fromDepth).toFixed(2)) },
     { title: '岩性', dataIndex: 'lithology', width: 130, render: (v: string) => <Tag color="geekblue">{v}</Tag> },
     { title: '颜色', dataIndex: 'color', width: 90 },
@@ -194,7 +194,7 @@ export default function LithoEditor() {
         岩性描述编录
       </Title>
       <Paragraph type="secondary">
-        按深度区间编录岩性、蚀变、矿化与 RQD，区间不允许与已编录区间重叠（重叠即报冲突并高亮）；右侧柱状图叠加样品位与采取率异常段。
+        编录员按垂深记岩性、蚀变、矿化与 RQD，区间不允许与已编录区间重叠（重叠即报冲突并高亮）；右侧柱状图叠加样品位与采取率异常段。与班组长的孔深回次对账请到「对账台」。
       </Paragraph>
 
       <Space style={{ marginBottom: 12 }} wrap>

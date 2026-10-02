@@ -8,7 +8,7 @@ import DepthRangeInput from '../components/common/DepthRangeInput';
 import EmptyPanel from '../components/common/EmptyPanel';
 import { useDepthCalc } from '../hooks/useDepthCalc';
 import { useHoleStore } from '../stores/holeStore';
-import { useRunStore } from '../stores/runStore';
+import { useRunStore, type ShiftReportLine, type ShiftReportResult } from '../stores/runStore';
 import { SHIFTS } from '../types/drill-hole';
 import type { DrillRun, RunShift } from '../types/drill-run';
 import { footageOf, recoveryOf, validateRange } from '../utils/recovery';
@@ -28,6 +28,14 @@ interface RunFormValues {
   remark?: string;
 }
 
+interface ReportFormValues {
+  shift: RunShift;
+  drilledAt: Dayjs;
+  recorder: string;
+  waterLevel: number;
+  linesText: string;
+}
+
 /** 回次记录：起止深度自动算进尺与采取率 */
 export default function RunLog() {
   const { message } = AntApp.useApp();
@@ -38,11 +46,16 @@ export default function RunLog() {
   const addRun = useRunStore((s) => s.addRun);
   const updateRun = useRunStore((s) => s.updateRun);
   const removeRun = useRunStore((s) => s.removeRun);
+  const submitShiftReport = useRunStore((s) => s.submitShiftReport);
   const { runsOf, summarize } = useDepthCalc();
 
   const [form] = Form.useForm<RunFormValues>();
+  const [reportForm] = Form.useForm<ReportFormValues>();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<DrillRun | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportBusy, setReportBusy] = useState(false);
+  const [reportResult, setReportResult] = useState<ShiftReportResult | null>(null);
   /** 深度区间以本地 state 为唯一数据源：避免 Form.useWatch 在弹窗首次挂载前读不到值 */
   const [range, setRange] = useState<{ from: number; to: number }>({ from: 0, to: 0 });
   const [liveCore, setLiveCore] = useState(0);
@@ -125,9 +138,67 @@ export default function RunLog() {
     setOpen(false);
   };
 
+  const openReport = () => {
+    setReportResult(null);
+    reportForm.resetFields();
+    const hole = holes.find((h) => h.id === activeHoleId);
+    reportForm.setFieldsValue({
+      shift: hole?.shift === '甲班' || hole?.shift === '乙班' || hole?.shift === '丙班' ? hole.shift : '甲班',
+      drilledAt: dayjs(),
+      recorder: '高振华',
+      waterLevel: 15,
+      linesText: '',
+    } as ReportFormValues);
+    setReportOpen(true);
+  };
+
+  /** 班报提交：逐行解析后走 store 的幂等去重，同一班报再交一次不多出回次 */
+  const submitReport = async () => {
+    const values = await reportForm.validateFields();
+    const lines: ShiftReportLine[] = [];
+    const parseErrors: string[] = [];
+    values.linesText.split('\n').forEach((raw, index) => {
+      const text = raw.trim();
+      if (!text) return;
+      const parts = text.split(/[,，\s]+/);
+      const [runNo, from, to, core] = parts;
+      const fromDepth = Number(from);
+      const toDepth = Number(to);
+      const coreLength = Number(core);
+      if (!runNo || parts.length < 4 || [fromDepth, toDepth, coreLength].some(Number.isNaN)) {
+        parseErrors.push(`第${index + 1}行：格式应为「回次号,起深,止深,岩芯长」`);
+        return;
+      }
+      lines.push({ runNo, fromDepth, toDepth, coreLength });
+    });
+    if (!lines.length) {
+      setReportResult(parseErrors.length ? { added: 0, updated: 0, skipped: 0, errors: parseErrors } : null);
+      if (!parseErrors.length) message.error('请粘贴班报回次行');
+      return;
+    }
+    setReportBusy(true);
+    try {
+      const result = await submitShiftReport({
+        holeId: activeHoleId,
+        shift: values.shift,
+        drilledAt: values.drilledAt.toISOString(),
+        recorder: values.recorder,
+        waterLevel: Number(values.waterLevel) || 0,
+        lines,
+      });
+      const merged = { ...result, errors: [...parseErrors, ...result.errors] };
+      setReportResult(merged);
+      if (!merged.errors.length) {
+        message.success(`班报提交完成：新增 ${merged.added}、修正 ${merged.updated}、跳过 ${merged.skipped}（再交一次不多出回次）`);
+      }
+    } finally {
+      setReportBusy(false);
+    }
+  };
+
   const columns: TableColumnsType<DrillRun> = [
     { title: '回次号', dataIndex: 'runNo', width: 110, render: (v: string) => <Text strong>{v}</Text> },
-    { title: '深度区间(m)', width: 140, render: (_, row) => `${row.fromDepth}~${row.toDepth}` },
+    { title: '深度区间(m·孔深)', width: 140, render: (_, row) => `${row.fromDepth}~${row.toDepth}` },
     { title: '进尺(m)', dataIndex: 'footage', width: 100, align: 'right' },
     { title: '岩芯长度(m)', dataIndex: 'coreLength', width: 120, align: 'right' },
     { title: '采取率', dataIndex: 'recovery', width: 140, render: (v: number) => <RecoveryBadge recovery={v} showAdvice /> },
@@ -163,13 +234,18 @@ export default function RunLog() {
       <Title level={3} style={{ marginBottom: 4 }}>
         回次记录
       </Title>
-      <Paragraph type="secondary">录入起止深度与岩芯长度，系统自动计算进尺与采取率；采取率低于 75% 立即标红并进入异常清单。</Paragraph>
+      <Paragraph type="secondary">
+        班组长按孔深录入起止深度与岩芯长度，系统自动计算进尺与采取率；采取率低于 75% 立即标红并进入异常清单。班报按回次号幂等去重，再交一次不多出回次。
+      </Paragraph>
 
       <Space style={{ marginBottom: 12 }} wrap>
         <span style={{ color: '#6b7a86' }}>当前钻孔</span>
         <Select style={{ width: 200 }} value={activeHoleId} onChange={setCurrentHole} options={holeOptions} placeholder="选择钻孔" />
         <Button type="primary" onClick={openCreate} disabled={!activeHoleId}>
           录入回次
+        </Button>
+        <Button onClick={openReport} disabled={!activeHoleId}>
+          班报提交
         </Button>
         <Text type="secondary">
           深度覆盖：{summary.coverage.length ? summary.coverage.map((r) => `${r.from}~${r.to}m`).join('、') : '尚无回次'}
@@ -271,6 +347,61 @@ export default function RunLog() {
             <Input.TextArea rows={2} maxLength={60} placeholder="岩芯破碎情况等" />
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        open={reportOpen}
+        title="班报提交（按回次号幂等去重）"
+        onCancel={() => setReportOpen(false)}
+        onOk={submitReport}
+        okText="提交班报"
+        cancelText="关闭"
+        confirmLoading={reportBusy}
+        width={640}
+      >
+        <Alert
+          style={{ marginBottom: 12 }}
+          type="info"
+          showIcon
+          message="每行一个回次：回次号,起深,止深,岩芯长(m)，逗号或空格分隔。同一回次号重复提交只修正不新增，班报再交一次不多出回次。"
+        />
+        <Form form={reportForm} layout="vertical">
+          <Space size={12} style={{ display: 'flex' }} align="start" wrap>
+            <Form.Item name="shift" label="班次" rules={[{ required: true, message: '请选择班次' }]}>
+              <Select style={{ width: 110 }} options={SHIFTS.map((v) => ({ label: v, value: v }))} />
+            </Form.Item>
+            <Form.Item name="drilledAt" label="钻进日期" rules={[{ required: true, message: '请选择钻进日期' }]}>
+              <DatePicker style={{ width: 150 }} />
+            </Form.Item>
+            <Form.Item name="recorder" label="记录人" rules={[{ required: true, message: '请输入记录人' }]}>
+              <Input style={{ width: 120 }} maxLength={16} />
+            </Form.Item>
+            <Form.Item name="waterLevel" label="回次水位(m)" rules={[{ required: true, message: '请输入回次水位' }]}>
+              <InputNumber min={0} step={0.1} style={{ width: 130 }} />
+            </Form.Item>
+          </Space>
+          <Form.Item name="linesText" label="班报回次" rules={[{ required: true, message: '请粘贴班报回次行' }]}>
+            <Input.TextArea rows={8} placeholder={'如：\n2401-32,155,160,4.5\n2401-33,160,165,4.86'} />
+          </Form.Item>
+        </Form>
+        {reportResult ? (
+          <Alert
+            type={reportResult.errors.length ? 'warning' : 'success'}
+            showIcon
+            message={`新增 ${reportResult.added} · 修正 ${reportResult.updated} · 无变化跳过 ${reportResult.skipped} · 失败 ${reportResult.errors.length} 行`}
+            description={
+              reportResult.errors.length ? (
+                <ul style={{ margin: 0, paddingLeft: 18 }}>
+                  {reportResult.errors.map((error) => (
+                    <li key={error}>{error}</li>
+                  ))}
+                </ul>
+              ) : (
+                '全部行已入账；同一班报再次提交不会重复新增回次'
+              )
+            }
+          />
+        ) : null}
       </Modal>
     </div>
   );
